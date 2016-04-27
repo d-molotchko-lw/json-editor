@@ -67,6 +67,13 @@ JSONEditor.AbstractEditor = Class.extend({
     
   },
   postBuild: function() {
+    var _self = this;
+    if (this.header && this.header.getElementsByClassName('actual-field')[0]){
+      this.header.getElementsByClassName('actual-field')[0].addEventListener('click',function(e) {
+        _self.jsoneditor.trigger('change')
+      });
+    }
+
     this.setupWatchListeners();
     this.addLinks();
     this.setValue(this.getDefault(), true);

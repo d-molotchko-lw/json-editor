@@ -228,9 +228,15 @@ JSONEditor.prototype = {
     var self = this;
     
     this.ready = false;
+    this.varname = undefined;
 
-    var theme_class = JSONEditor.defaults.themes[this.options.theme || JSONEditor.defaults.theme];
-    if(!theme_class) throw "Unknown theme " + (this.options.theme || JSONEditor.defaults.theme);
+    var theme_name = this.options.theme || JSONEditor.defaults.theme;
+    if(self.options.selectable_fields) {
+       theme_name += "_s";
+    }
+
+    var theme_class = JSONEditor.defaults.themes[theme_name];
+    if(!theme_class) throw "Unknown theme " + theme_name;
     
     this.schema = this.options.schema;
     this.theme = new theme_class();
@@ -298,6 +304,55 @@ JSONEditor.prototype = {
 
     this.root.setValue(value);
     return this;
+  },
+  setValues: function(obj, prefix){
+    if( prefix === undefined ){
+    	prefix = "root.";
+        for( var f in obj ){
+            this.varname = f;
+            break;
+        }
+    }
+    for( var field in obj[this.varname] ){
+    	var path = prefix+field;
+    	var val = obj[this.varname][field];
+    	if( val instanceof Object ){
+    	    this.setValues( val, path+"." );
+    	} else {
+      	    var name = this.getEditor(path);
+      	    name.setValue( obj[this.varname][field] );
+     	    $(this.element).find("div[data-schemapath='"+path+"'] .actual-field").attr('checked', 'checked');
+    	}
+    }
+    return this;
+  },
+  getValues: function(){
+    if(!this.ready) throw "JSON Editor not ready yet.  Listen for 'ready' event before setting the value";
+    var obj = {};
+    var setObjValue = function ( obj, fields, val ){
+    	for( var i=1;  i<fields.length-1;  ++i ){
+    		if( obj[fields[i]] === undefined ){
+       		    obj[fields[i]] = {};
+    		}
+   		    obj = obj[fields[i]];
+    	}
+    	obj[fields[fields.length-1]] = val;
+    };
+    if( this.options.selectable_fields ){
+        var self = this;
+       	$(this.element).find("input.actual-field:checked").parent().parent().parent().each(function(i, data){
+       		var field = $(data).attr('data-schemapath');
+       		var name = self.getEditor(field);
+       		if( name ) {
+		    setObjValue(obj, field.split("\."), name.getValue());
+       		}    		
+       	});
+    } else {
+    	obj = this.getValue();
+    }
+    var rc = {};
+    rc[this.varname] = obj;
+    return rc;
   },
   validate: function(value) {
     if(!this.ready) throw "JSON Editor not ready yet.  Listen for 'ready' event before validating";
@@ -1443,6 +1498,13 @@ JSONEditor.AbstractEditor = Class.extend({
     
   },
   postBuild: function() {
+    var _self = this;
+    if (this.header && this.header.getElementsByClassName('actual-field')[0]){
+      this.header.getElementsByClassName('actual-field')[0].addEventListener('click',function(e) {
+        _self.jsoneditor.trigger('change')
+      });
+    }
+
     this.setupWatchListeners();
     this.addLinks();
     this.setValue(this.getDefault(), true);
@@ -6740,6 +6802,18 @@ JSONEditor.defaults.themes.bootstrap3 = JSONEditor.AbstractTheme.extend({
     bar.removeAttribute('aria-valuenow');
     bar.style.width = '100%';
     bar.innerHTML = '';
+  }
+});
+
+JSONEditor.defaults.themes.bootstrap3_s = JSONEditor.defaults.themes.bootstrap3.extend({
+  getFormInputLabel: function(text) {
+    var el = document.createElement('label');
+    var chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.className = 'actual-field';
+    el.appendChild(chk);
+    el.appendChild(document.createTextNode(text));
+    return el;
   }
 });
 
